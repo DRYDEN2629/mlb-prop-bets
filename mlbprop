@@ -1,0 +1,3 @@
+git remote add origin https://github.com/your-username/mlb-prop-bets.git
+git branch -M main  # Make sure you're on the main branch
+git push -u origin main
