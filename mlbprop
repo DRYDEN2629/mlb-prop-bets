@@ -1,3 +1,106 @@
-git remote add origin https://github.com/your-username/mlb-prop-bets.git
-git branch -M main  # Make sure you're on the main branch
-git push -u origin main
+import React, { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const initialBets = [
+  {
+    bet: "Aaron Judge to hit a HR",
+    baseProb: 0.42,
+    odds: 120,
+    weather: "warm",
+    wind: "out",
+    fatigue: "high",
+    location: "Yankee Stadium",
+  },
+  {
+    bet: "Shohei Ohtani 2+ hits",
+    baseProb: 0.33,
+    odds: 140,
+    weather: "cold",
+    wind: "in",
+    fatigue: "low",
+    location: "Petco Park",
+  },
+];
+
+function moneylineToProb(odds) {
+  return odds > 0 ? 100 / (odds + 100) : -odds / (-odds + 100);
+}
+
+function calcEV(prob, odds) {
+  const payout = odds > 0 ? odds / 100 : 100 / -odds;
+  return prob * payout - (1 - prob);
+}
+
+function adjustProb(base, weather, wind, fatigue, location) {
+  const weatherFactor = weather === "warm" ? 1.05 : 0.95;
+  const windFactor = wind === "out" ? 1.1 : wind === "in" ? 0.9 : 1.0;
+  const fatigueFactor = fatigue === "high" ? 1.1 : fatigue === "low" ? 0.95 : 1.0;
+  const locationFactor = {
+    "Coors Field": 1.15,
+    "Petco Park": 0.9,
+    "Wrigley Field": 1.1,
+    "Yankee Stadium": 1.05,
+  }[location] || 1.0;
+
+  return Math.min(base * weatherFactor * windFactor * fatigueFactor * locationFactor, 0.99);
+}
+
+export default function MLBPropBetAdvisor() {
+  const [bets, setBets] = useState(initialBets);
+  const [topBet, setTopBet] = useState(null);
+
+  const evaluateBets = () => {
+    let top = null;
+    const evaluated = bets.map((bet) => {
+      const adjProb = adjustProb(
+        bet.baseProb,
+        bet.weather,
+        bet.wind,
+        bet.fatigue,
+        bet.location
+      );
+      const ev = calcEV(adjProb, bet.odds);
+      const updated = { ...bet, adjProb, ev };
+      if (!top || ev > top.ev) top = updated;
+      return updated;
+    });
+    setBets(evaluated);
+    setTopBet(top);
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">⚾ Smart MLB Prop Bet Advisor</h1>
+      <Button onClick={evaluateBets}>Evaluate Bets</Button>
+
+      {topBet && (
+        <Card className="bg-green-100">
+          <CardContent className="p-4">
+            <h2 className="text-xl font-semibold">🔥 Top Bet Pick</h2>
+            <p>{topBet.bet}</p>
+            <p>Adjusted Probability: {(topBet.adjProb * 100).toFixed(1)}%</p>
+            <p>Odds: {topBet.odds > 0 ? "+" : ""}{topBet.odds}</p>
+            <p>Expected Value: {topBet.ev.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {bets.map((bet, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-2">
+              <h3 className="text-lg font-medium">{bet.bet}</h3>
+              <p>Base Probability: {(bet.baseProb * 100).toFixed(1)}%</p>
+              <p>Adjusted: {(bet.adjProb * 100).toFixed(1)}%</p>
+              <p>Odds: {bet.odds > 0 ? "+" : ""}{bet.odds}</p>
+              <p>EV: {bet.ev.toFixed(2)}</p>
+              <p>Weather: {bet.weather}, Wind: {bet.wind}</p>
+              <p>Fatigue: {bet.fatigue}, Location: {bet.location}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
